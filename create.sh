@@ -15,12 +15,39 @@ function create_rough_note () {
 	fi
 }
 function create_source_material () {
+	# Get Type
+	type=$(echo -e "article\nimage\nthread-discussion\nvideo\ndocumentation" | wofi --dmenu -p type)
+	if [[ $type != "" ]]
+	then
+	# Get Title
 	title=$(echo "" | wofi --dmenu -p title)
 	if [[ $title != "" ]]
 	then
 		title=$(echo $title | sed -e 's/ /-/g')
-		touch $NOTEBASEPATH/2-source-material/$title.md
-		$TERM -e $EDITOR $NOTEBASEPATH/2-source-material/$title.md &
+		case $type in
+			"article")
+				dir="article/"
+				;;
+			"image")
+				dir="image/"
+				;;
+			"thread-discussion")
+				dir="thread-discussion/"
+				;;
+			"video")
+				dir="video/"
+				;;
+			"documentation")
+				dir="documentation/"
+				;;
+			*)
+				dir=""
+				;;
+		esac
+
+		touch $NOTEBASEPATH/2-source-material/$dir$title.md
+		$TERM -e $EDITOR $NOTEBASEPATH/2-source-material/$dir$title.md &
+	fi
 	fi
 }
 function create_full_note () {
