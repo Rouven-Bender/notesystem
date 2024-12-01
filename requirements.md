@@ -3,7 +3,7 @@ I need the stack to integrate into sway with wofi
 - Hotkey should be super+n for creating a note
 - Hotkey for searching should be super+s
 
-Will need an lsp for autocomplete some stuff (status-tags, tags)
+//Will need an lsp for autocomplete some stuff (status-tags, tags)
 
 The note taking system has to support the following
 obsidian structure recommended to me:
