@@ -2,81 +2,32 @@
 #ENV vars needed
 #$NOTEBASEPATH
 #$EDITOR
-#$TERM
+#$TERMINAL
 
-#Function space
-function create_rough_note () {
-	title=$(echo "" | wofi --dmenu -p title)
-	if [[ $title != "" ]]
-	then
-		title=$(echo $title | sed -e 's/ /-/g')
-		touch $NOTEBASEPATH/1-rough-notes/$title.md
-		$TERM -e $EDITOR $NOTEBASEPATH/1-rough-notes/$title.md &
-	fi
-}
-function create_source_material () {
-	# Get Type
-	type=$(echo -e "article\nimage\nthread-discussion\nvideo\ndocumentation" | wofi --dmenu -p type)
-	if [[ $type != "" ]]
-	then
-	# Get Title
-	title=$(echo "" | wofi --dmenu -p title)
-	if [[ $title != "" ]]
-	then
-		title=$(echo $title | sed -e 's/ /-/g')
-		case $type in
-			"article")
-				dir="article/"
-				;;
-			"image")
-				dir="image/"
-				;;
-			"thread-discussion")
-				dir="thread-discussion/"
-				;;
-			"video")
-				dir="video/"
-				;;
-			"documentation")
-				dir="documentation/"
-				;;
-			*)
-				dir=""
-				;;
-		esac
+type=$1
 
-		touch $NOTEBASEPATH/2-source-material/$dir$title.md
-		$TERM -e $EDITOR $NOTEBASEPATH/2-source-material/$dir$title.md &
-	fi
-	fi
+#function space
+function private_note() {
+		$TERMINAL -e $EDITOR "+0r $HOME/.local/etc/template.md.tmpl" $NOTEBASEPATH/private/$(cat /proc/sys/kernel/random/uuid).md
 }
-function create_full_note () {
-	title=$(echo "" | wofi --dmenu -p title)
-	if [[ $title != "" ]]
-	then
-		title=$(echo $title | sed -e 's/ /-/g')
-		touch $NOTEBASEPATH/3-full-notes/$title.md
-		$TERM -e $EDITOR $NOTEBASEPATH/3-full-notes/$title.md &
-	fi
+function normal_note() {
+		$TERMINAL -e $EDITOR "+0r $HOME/.local/etc/template.md.tmpl" $NOTEBASEPATH/$(cat /proc/sys/kernel/random/uuid).md
 }
-function unknown () {
-	echo "I don't know what you want from me"
+function work_note() {
+		$TERMINAL -e $EDITOR "+0r $HOME/.local/etc/template.md.tmpl" $NOTEBASEPATH/work/$(cat /proc/sys/kernel/random/uuid).md
 }
 #
 
-type=$(echo -e "rough note\nsource material\nfull note" | wofi --dmenu -p type)
-
 case $type in
-		"rough note")
-			create_rough_note
-			;;
-		"source material")
-			create_source_material
-			;;
-		"full note")
-			create_full_note
-			;;
+		"private")
+				private_note
+				;;
+		"normal" | "")
+				normal_note
+				;;
+		"work")
+				work_note
+				;;
 		*)
-			unknown
-			;;
+				;;
 esac

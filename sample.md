@@ -1,6 +1,6 @@
 ---
-Tags: #test #tag
-Source: 
+Tags: #test #tag #parent/child/
+Source:
     - https://url.example/article.html
     - gopher://gopher.bartmoss.example/thoughts.md
     - file:madoka//data/drive/doc/1-rough-notes/test.md
@@ -9,4 +9,5 @@ Talked-To:
     - Alex Example
 ---
 Standart Markdown for notes
-[[Links]]
+[Named::[[Links]]]
+[[Link]]
