@@ -11,6 +11,12 @@ import (
 
 	"grimoire/rpc"
 )
+type daemon struct {
+	ShutdownChannel chan bool
+}
+var grimoire daemon = daemon{
+	ShutdownChannel: make(chan bool, 1),
+}
 
 func main() {
 	home, err := os.UserHomeDir()
@@ -33,8 +39,12 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		<-c
+		select {
+		case <-c:
+		case <-grimoire.ShutdownChannel:
+		}
 		os.Remove(socketFilePath)
+		log.Println("cleaned up the socket")
 		os.Exit(0)
 	}()
 
@@ -45,8 +55,9 @@ func main() {
 			continue
 		}
 		go func (conn net.Conn) {
-			log.Println("connection accepted")
 			defer conn.Close()
+			log.Println("connection accepted")
+			defer log.Println("connection closed")
 
 			scanner := bufio.NewScanner(conn)
 			scanner.Split(rpc.Split)
@@ -58,21 +69,38 @@ func main() {
 					log.Printf("error: %v", err)
 					continue
 				}
-				handleMessage(conn, method, content)
+				if c := handleMessage(conn, method, content); c {
+					break
+				}
 			}
 		}(conn)
 	}
 }
-func handleMessage(conn net.Conn, method string, content []byte) {
+func handleMessage(conn net.Conn, method string, content []byte) (closeQ bool){
 	switch method {
 	case "easter":
 		rsp := rpc.BaseResponse {
 			Response: "Happy Easter",
 		}
 		writeResponse(conn, rsp)
+	case "close":
+		log.Println("recieved close message")
+		conn.Close()
+		return true
+	case "shutdown":
+		log.Println("recieved shutdown message")
+		sendShutdownEvent()
 	default:
-		// TODO: make error for invalid method
+		rsp := rpc.BaseError {
+			Error: "Unknown Method",
+		}
+		writeResponse(conn, rsp)
 	}
+	return false
+}
+
+func sendShutdownEvent() {
+	grimoire.ShutdownChannel<-true
 }
 
 func writeResponse(conn net.Conn, msg any) {

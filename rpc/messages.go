@@ -13,3 +13,10 @@ type BaseResponse struct {
 type BaseError struct {
 	Error string `json:"error"`
 }
+
+var CloseMessage BaseMessage = BaseMessage {
+	Method: "close",
+}
+var ShutdownMessage BaseMessage = BaseMessage {
+	Method: "shutdown",
+}
