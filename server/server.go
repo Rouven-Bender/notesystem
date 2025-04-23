@@ -51,7 +51,7 @@ func main() {
 	for {
 		conn, err := socket.Accept()
 		if err != nil {
-			log.Println("accepting incoming connection failed: %v", err)
+			log.Printf("accepting incoming connection failed: %v", err)
 			continue
 		}
 		go func (conn net.Conn) {
