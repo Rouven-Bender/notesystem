@@ -29,6 +29,6 @@ func TestParseHeader(t *testing.T) {
 	}
 
 	for _, p := range prop {
-		log.Printf("key: %s\nvalue: %s\n", p.name, p.value)
+		log.Printf("key:%s\nvalue:%s\n", p.name, p.value)
 	}
 }

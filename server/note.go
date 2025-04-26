@@ -8,17 +8,6 @@ import (
 	"bytes"
 )
 
-type Note struct {
-	Header Metadata
-	NoteText string
-}
-type Metadata struct {
-	Title string
-	Tags []string
-	URLSources []string
-	LinkSourceNote []string
-}
-
 var (
 	ErrInvalidHeader error = errors.New("invalid header")
 	ErrNoteWithoutBodyContent error = errors.New("note doesn't have body content")
@@ -53,14 +42,15 @@ func Parse(reader io.Reader) (*Note, error) {
 		}
 	}
 	n.NoteText = string(content)
-	parseHeader(header)
+	props, err := parseHeader(header)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range props {
+		n.Header.parseProperty(&p)
+	}
 
-	return nil, nil
-}
-
-type property struct {
-	name string
-	value string
+	return n, nil // CHANGE LATER
 }
 
 func parseHeader(header []byte) ([]property,error) {
