@@ -8,15 +8,15 @@ import (
 var notelink *regexp.Regexp = regexp.MustCompile(`^\[\[(?P<filename>.*)\]\]$`)
 
 type Note struct {
-	Header Metadata
-	NoteText string
+	Header Metadata `json:"header"`
+	NoteText string `json:"text-content"`
 }
 
 type Metadata struct {
-	Title string
-	Tags []string
-	URLSources []string
-	LinkSourceNote []string
+	Title string `json:"title"`
+	Tags []string `json:"tags"`
+	URLSources []string `json:"url-sources"`
+	LinkSourceNote []string `json:"file-sources"`
 }
 
 func (m *Metadata) parseProperty(p *property) {

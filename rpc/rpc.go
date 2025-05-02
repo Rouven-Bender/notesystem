@@ -16,7 +16,27 @@ func EncodeMessage(msg any) (string, error) {
 	return fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(content), content), nil
 }
 
-func DecodeMessage(msg []byte) (string, []byte, error) {
+func DecodeResponse(msg []byte) (ResponseName, []byte, error) {
+	header, content, found := bytes.Cut(msg, []byte{'\r','\n','\r','\n'})
+	if !found {
+		return "", nil, errors.New("Couldn't find seperator between header and content")
+	}
+
+	contentLengthBytes := header[len([]byte("Content-Length: ")):]
+	contentLength, err := strconv.Atoi(string(contentLengthBytes))
+	if err != nil {
+		return "", nil, err
+	}
+
+	var baseResponse BaseResponse
+	if err = json.Unmarshal(content[:contentLength], &baseResponse); err != nil {
+		return "", nil, err
+	}
+
+	return baseResponse.Type, content[:contentLength], nil
+}
+
+func DecodeMessage(msg []byte) (MessageName, []byte, error) {
 	header, content, found := bytes.Cut(msg, []byte{'\r','\n','\r','\n'})
 	if !found {
 		return "", nil, errors.New("Couldn't find seperator between header and content")
