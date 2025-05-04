@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #Needs $NOTEBASEPATH
+#Needs ripgrep
 query=$(echo "" | wofi --dmenu -p search)
 if [[ $query != "" ]]
 then
-	query=$(echo $query | sed -e 's/ /-/g')
-	note=$(find $NOTEBASEPATH | grep $query | wofi --dmenu -p which?)
+	note=$(rg -l $query $NOTEBASEPATH | wofi --dmenu -p which?)
 	if [[ $note != "" ]]
 	then
-		$TERM -e nvim $note
+		$TERMINAL -e nvim $note
 	fi
 fi
