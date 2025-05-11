@@ -13,36 +13,20 @@ import (
 	"strings"
 
 	"grimoire/rpc"
-
-	bleve "github.com/blevesearch/bleve/v2"
 )
 
 type daemon struct {
 	ShutdownChannel chan bool
 	NotebasePath string
-	Index bleve.Index
-}
-var grimoire daemon = daemon{
-	ShutdownChannel: make(chan bool, 1),
-	NotebasePath: os.Getenv("NOTEBASEPATH"),
+	Socket net.Listener
+	SqlDB *sqliteStore
 }
 
-func main() {
-	if grimoire.NotebasePath == "" {
-		log.Fatalf("$NOTEBASEPATH is empty")
-	}
-	indexPath := path.Join(grimoire.NotebasePath, "index.bleve")
-	var err error
-	grimoire.Index, err = bleve.Open(indexPath)
-	if err != nil {
-		log.Println(err)
-		mapping := bleve.NewIndexMapping()
-		grimoire.Index, err = bleve.New(indexPath, mapping)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+func (d *daemon) sendShutdownEvent() {
+	d.ShutdownChannel<-true
+}
 
+func (d *daemon) setupSocket() {
 	// Setup of Socket
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -59,6 +43,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error listening to unix domain socket: %v", err)
 	}
+	d.Socket = socket
 
 	// Cleanup the socket file
 	c := make(chan os.Signal, 1)
@@ -66,43 +51,66 @@ func main() {
 	go func() {
 		select {
 		case <-c:
-		case <-grimoire.ShutdownChannel:
+		case <-d.ShutdownChannel:
 		}
 		os.Remove(socketFilePath)
 		log.Println("cleaned up the socket")
 		os.Exit(0)
 	}()
-
+}
+func (d *daemon) listenforconnections() {
 	for {
 		conn, err := socket.Accept()
 		if err != nil {
 			log.Printf("accepting incoming connection failed: %v", err)
 			continue
 		}
-		go func (conn net.Conn) {
-			defer conn.Close()
-			log.Println("connection accepted")
-			defer log.Println("connection closed")
-
-			scanner := bufio.NewScanner(conn)
-			scanner.Split(rpc.Split)
-
-			for scanner.Scan() {
-				msg := scanner.Bytes()
-				method, content, err := rpc.DecodeMessage(msg)
-				if err != nil {
-					log.Printf("error: %v", err)
-					continue
-				}
-				if c := handleMessage(conn, method, content); c {
-					break
-				}
-			}
-		}(conn)
+		go d.handleconnection(conn)
 	}
 }
 
-func handleMessage(conn net.Conn, method rpc.MessageName, content []byte) (closeQ bool){
+func InitServer() *daemon {
+	grimoire := &daemon{
+		ShutdownChannel: make(chan bool, 1),
+		NotebasePath: os.Getenv("NOTEBASEPATH"),
+	}
+	if grimoire.NotebasePath == "" {
+		log.Fatalf("$NOTEBASEPATH is empty")
+	}
+	grimoire.SqlDB, err = NewSqliteStore(path.Join(grimoire.NotebasePath, "db.sqlite"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	grimoire.setupSocket()
+	grimoire.listenforconnections()
+}
+
+func main() {
+	grimoire := InitServer()
+}
+
+func (d *daemon) handleconnection(conn net.Conn) {
+	defer conn.Close()
+	log.Println("connection accepted")
+	defer log.Println("connection closed")
+
+	scanner := bufio.NewScanner(conn)
+	scanner.Split(rpc.Split)
+
+	for scanner.Scan() {
+		msg := scanner.Bytes()
+		method, content, err := rpc.DecodeMessage(msg)
+		if err != nil {
+			log.Printf("error: %v", err)
+			continue
+		}
+		if c := d.handleMessage(conn, method, content); c {
+			break
+		}
+	}
+}
+
+func (d *daemon) handleMessage(conn net.Conn, method rpc.MessageName, content []byte) (closeQ bool){
 	switch method {
 	case rpc.CLOSE:
 		log.Println("recieved close message")
@@ -110,11 +118,11 @@ func handleMessage(conn net.Conn, method rpc.MessageName, content []byte) (close
 		return true
 	case rpc.SHUTDOWN:
 		log.Println("recieved shutdown message")
-		sendShutdownEvent()
+		d.sendShutdownEvent()
 	case rpc.INDEX:
-		handleIndexRequest(conn, content)
+		d.handleIndexRequest(conn, content)
 	case rpc.SEARCH:
-		handleSearchRequest(conn, content)
+		d.handleSearchRequest(conn, content)
 	default:
 		rsp := rpc.NewErrorResponse(fmt.Sprintf("Unknown Method: %s", method))
 		writeResponse(conn, rsp)
@@ -122,27 +130,36 @@ func handleMessage(conn net.Conn, method rpc.MessageName, content []byte) (close
 	return false
 }
 
-func handleSearchRequest(conn net.Conn, content []byte) {
-	m := rpc.SearchMessage{}
-	json.Unmarshal(content, &m)
-	log.Printf("recieved search query: \"%s\"", m.Query)
-	q := bleve.NewMatchQuery(m.Query)
-	r := bleve.NewSearchRequest(q)
-	res, err := grimoire.Index.Search(r)
-	if err != nil {
-		ersp := rpc.NewErrorResponse(fmt.Sprintf("ran into error while searching index: %s", err))
-		writeResponse(conn, ersp)
-		return
-	}
-	filenameOfHits := []string{}
-	for _, hit := range res.Hits {
-		filenameOfHits = append(filenameOfHits, hit.ID)
-	}
-	rsp := rpc.NewSuccessResponse(strings.Join(filenameOfHits, ","))
-	writeResponse(conn, rsp)
+func (d *daemon) handleSearchRequest(conn net.Conn, content []byte) {
+	//m := rpc.SearchMessage{}
+	//json.Unmarshal(content, &m)
+	//log.Printf("recieved search query: \"%s\"", m.Query)
+	//q := bleve.NewMatchQuery(m.Query)
+	//r := bleve.NewSearchRequest(q)
+	//res, err := grimoire.Index.Search(r)
+	//if err != nil {
+	//	ersp := rpc.NewErrorResponse(fmt.Sprintf("ran into error while searching index: %s", err))
+	//	writeResponse(conn, ersp)
+	//	return
+	//}
+	//hitData := rpc.SearchResults{}
+	//hitData.Type = rpc.SUCCESS
+	//for _, hit := range res.Hits {
+	//	data := rpc.Hit{}
+	//	data.Filename = hit.ID
+	//	log.Println(len(hit.Fragments))
+	//	for fragmentField, fragments := range hit.Fragments {
+	//		f := rpc.Fragment{}
+	//		f.Field = fragmentField
+	//		f.Matches = fragments
+	//		data.Fragments = append(data.Fragments, f)
+	//	}
+	//	hitData.Hits = append(hitData.Hits, data)
+	//}
+	//writeResponse(conn, hitData)
 }
 
-func handleIndexRequest(conn net.Conn, content []byte) {
+func (d *daemon) handleIndexRequest(conn net.Conn, content []byte) {
 	m := rpc.IndexMessage{}
 	json.Unmarshal(content, &m)
 	log.Printf("recieved index message for file: \"%s\"", m.Filename)
@@ -157,7 +174,7 @@ func handleIndexRequest(conn net.Conn, content []byte) {
 			log.Printf("ran into error while parsing file(%s): %s", m.Filename, err)
 			return fmt.Errorf("ran into error while parsing file(%s): %s", m.Filename, err)
 		}
-		err = index(n, m.Filename)
+		err = d.SqlDB.index(m.Filename, n)
 		if err != nil {
 			log.Println("ran into error while indexing")
 			return fmt.Errorf("ran into error while indexing: %s", err)
@@ -174,21 +191,7 @@ func handleIndexRequest(conn net.Conn, content []byte) {
 	}
 }
 
-func sendShutdownEvent() {
-	grimoire.ShutdownChannel<-true
-}
-
 func writeResponse(conn net.Conn, msg any) {
 	reply, _ := rpc.EncodeMessage(msg)
 	conn.Write([]byte(reply))
-}
-
-func index(note *Note, filepath string) error {
-	filename := path.Base(filepath)
-	err := grimoire.Index.Index(filename, note)
-	if err != nil {
-		log.Println("got error", err)
-		return err
-	}
-	return nil
 }

@@ -42,6 +42,19 @@ func NewSuccessResponse(value string) *SuccessResponse {
 	return s
 }
 
+type SearchResults struct {
+	BaseResponse
+	Hits []Hit `json:"hits"`
+}
+type Hit struct {
+	Filename string `json:"filename"`
+	Fragments []Fragment `json:"reason"`
+}
+type Fragment struct {
+	Field string `json:"field"`
+	Matches []string `json:"matches"`
+}
+
 type IndexMessage struct {
 	BaseMessage
 	Filename string `json:"filename"`
